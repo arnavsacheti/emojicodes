@@ -3,10 +3,8 @@ import json
 from importlib import resources
 
 from docutils import nodes
-from docutils.utils import new_document
 
 from sphinx.transforms import SphinxTransform
-from sphinx.util.docutils import LoggingReporter
 from sphinx.util.fileutil import copy_asset
 
 from . import __version__
@@ -25,24 +23,10 @@ emoji_styles = {
 def load_emoji_codes():
     """
     Load emoji codes from the JSON file.
-
-    This function tweaks some emojis to avoid Sphinx warnings when generating
-    the documentation. See:
-
-    - Original issue: https://github.com/sphinx-doc/sphinx/issues/8276
-    - New issue: https://sourceforge.net/p/docutils/feature-requests/79/
     """
     fname = resources.files('sphinxemoji') / 'codes.json'
     with open(fname, encoding='utf-8') as fp:
         codes = json.load(fp)
-
-    # Avoid unexpected warnings
-    warning_keys = []
-    for key, value in codes.items():
-        if value.startswith("*"):
-            warning_keys.append(key)
-    for key in warning_keys:
-        codes[key] = "\\" + codes[key]
 
     return codes
 
@@ -50,14 +34,7 @@ def load_emoji_codes():
 class EmojiSubstitutions(SphinxTransform):
     default_priority = 211
 
-    def __init__(self, document, startnode=None):
-        super().__init__(document, startnode)
-        self.parser = self.app.registry.create_source_parser(self.app, 'rst')
-
     def apply(self):
-        config = self.document.settings.env.config
-        settings, source = self.document.settings, self.document['source']
-
         codes = load_emoji_codes()
 
         to_handle = (set(codes.keys()) -
@@ -67,16 +44,7 @@ class EmojiSubstitutions(SphinxTransform):
             refname = ref['refname']
             if refname in to_handle:
                 text = codes[refname]
-
-                doc = new_document(source, settings)
-                doc.reporter = LoggingReporter.from_reporter(doc.reporter)
-                self.parser.parse(text, doc)
-
-                substitution = doc.next_node()
-                # Remove encapsulating paragraph
-                if isinstance(substitution, nodes.paragraph):
-                    substitution = substitution.next_node()
-                ref.replace_self(substitution)
+                ref.replace_self(nodes.Text(text))
 
 
 def copy_asset_files(app, exc):
