@@ -1,0 +1,50 @@
+name: Test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+  workflow_call:
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: verilator/verilator:latest
+    permissions:
+      contents: read
+      statuses: write
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+        sphinx-major: ['5', '6', '7', '8', '9']  # install latest release within each major
+        exclude:
+          - python-version: '3.9'
+            sphinx-major: '8'  # Sphinx 8 requires Python 3.10+
+          - python-version: '3.9'
+            sphinx-major: '9'  # Sphinx 9 requires Python 3.11+
+          - python-version: '3.10'
+            sphinx-major: '9'  # Sphinx 9 requires Python 3.11+
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . "sphinx~=${{ matrix.sphinx-major }}.0"
+      
+      - name: Run tests
+        run: |
+          make html -C docs
